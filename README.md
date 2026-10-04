@@ -1,6 +1,6 @@
 # Vellichor Taxonomies
 
-本の紹介サイト「本棚に猫」（https://vellichorbooks.jp/）のために作成した、WordPressの自作プラグインです。
+本の紹介サイト「本棚に猫」（[vellichorbooks.jp](https://vellichorbooks.jp/)）のために作成した、WordPressの自作プラグインです。
 通常の「投稿」に、本の情報を整理するための5つの分類（カスタムタクソノミー）を追加します。
 
 ## 追加する分類
