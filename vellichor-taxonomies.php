@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Vellichor Taxonomies
- * Description: 本棚に猫の蔵書と、著者・出版社・形式・ジャンル・特集の分類を登録する
- * Version: 1.3.0
+ * Description: 本棚に猫の蔵書と、著者・出版社・形式・ジャンル・特集・状態の分類を登録する
+ * Version: 1.4.0
  * Author: M.Hanafusa
  */
 
@@ -125,5 +125,19 @@ function vellichor_register_taxonomies() {
 			'rewrite'           => array( 'slug' => 'feature' ),
 		)
 	);
+	
+    // 状態（刊行予定・所蔵・品切れ・絶版）
+    register_taxonomy(
+        'book_status',
+        array( 'vellichor_book' ),
+        array(
+            'labels'            => vellichor_labels( '状態' ),
+            'hierarchical'      => true,
+            'public'            => true,
+            'show_in_rest'      => true,
+            'show_admin_column' => true,
+            'rewrite'           => array( 'slug' => 'status' ),
+        )
+    );
 }
 add_action( 'init', 'vellichor_register_taxonomies' );
