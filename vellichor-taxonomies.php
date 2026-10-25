@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Vellichor Taxonomies
- * Description: 本棚に猫の蔵書と、著者・出版社・形式・ジャンル・特集・状態の分類を登録する
- * Version: 1.4.0
+ * Description: 本棚に猫の蔵書と、著者・出版社・形式・ジャンル・特集・状態・装丁者の分類を登録する
+ * Version: 1.5.0
  * Author: M.Hanafusa
  */
 
@@ -137,6 +137,20 @@ function vellichor_register_taxonomies() {
             'show_in_rest'      => true,
             'show_admin_column' => true,
             'rewrite'           => array( 'slug' => 'status' ),
+        )
+    );
+	
+    // 装丁者
+    register_taxonomy(
+        'book_designer',
+        array( 'vellichor_book' ),
+        array(
+            'labels'            => vellichor_labels( '装丁者' ),
+            'hierarchical'      => false,
+            'public'            => true,
+            'show_in_rest'      => true,
+            'show_admin_column' => true,
+            'rewrite'           => array( 'slug' => 'designer' ),
         )
     );
 }
