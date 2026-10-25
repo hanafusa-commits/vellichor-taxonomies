@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Vellichor Taxonomies
- * Description: 本棚に猫の蔵書と、著者・出版社・形式・ジャンル・特集・状態・装丁者・切り口の分類を登録する
- * Version: 1.6.0
+ * Description: 本棚に猫の蔵書と、著者・出版社・形式・ジャンル・特集・状態・装丁者・切り口・読み放題/聴き放題の分類を登録する
+ * Version: 1.7.0
  * Author: M.Hanafusa
  */
 
@@ -165,6 +165,20 @@ function vellichor_register_taxonomies() {
             'show_in_rest'      => true,
             'show_admin_column' => true,
             'rewrite'           => array( 'slug' => 'angle' ),
+        )
+    );
+	
+    // 読み放題・聴き放題（Kindle+・Audible。確認日は項目で別に記録）
+    register_taxonomy(
+        'book_subscription',
+        array( 'vellichor_book' ),
+        array(
+            'labels'            => vellichor_labels( '読み放題・聴き放題' ),
+            'hierarchical'      => true,
+            'public'            => true,
+            'show_in_rest'      => true,
+            'show_admin_column' => true,
+            'rewrite'           => array( 'slug' => 'subscription' ),
         )
     );
 }
