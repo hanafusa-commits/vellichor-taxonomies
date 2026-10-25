@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Vellichor Taxonomies
  * Description: 本棚に猫の蔵書と、著者・出版社・形式・ジャンル・特集の分類を登録する
- * Version: 1.2.0
+ * Version: 1.3.0
  * Author: M.Hanafusa
  */
 
@@ -59,7 +59,7 @@ function vellichor_register_taxonomies() {
 	// 著者
 	register_taxonomy(
 		'book_writer',
-		'post',
+		array( 'post', 'vellichor_book' ),
 		array(
 			'labels'            => vellichor_labels( '著者' ),
 			'hierarchical'      => false,
@@ -73,7 +73,7 @@ function vellichor_register_taxonomies() {
 	// 出版社
 	register_taxonomy(
 		'book_publisher',
-		'post',
+		array( 'post', 'vellichor_book' ),
 		array(
 			'labels'            => vellichor_labels( '出版社' ),
 			'hierarchical'      => false,
@@ -87,7 +87,7 @@ function vellichor_register_taxonomies() {
 	// 形式
 	register_taxonomy(
 		'book_format',
-		'post',
+		array( 'post', 'vellichor_book' ),
 		array(
 			'labels'            => vellichor_labels( '形式' ),
 			'hierarchical'      => true,
@@ -101,7 +101,7 @@ function vellichor_register_taxonomies() {
 	// ジャンル
 	register_taxonomy(
 		'book_genre',
-		'post',
+		array( 'post', 'vellichor_book' ),
 		array(
 			'labels'            => vellichor_labels( 'ジャンル' ),
 			'hierarchical'      => true,
@@ -115,7 +115,7 @@ function vellichor_register_taxonomies() {
 	// 特集
 	register_taxonomy(
 		'book_feature',
-		'post',
+		array( 'post', 'vellichor_book' ),
 		array(
 			'labels'            => vellichor_labels( '特集' ),
 			'hierarchical'      => true,
