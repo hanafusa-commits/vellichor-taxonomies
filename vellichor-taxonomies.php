@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Vellichor Taxonomies
  * Description: 本棚に猫の蔵書と、著者・出版社・形式・ジャンル・特集・状態・装丁者・切り口・読み放題/聴き放題の分類、蔵書の書誌情報の項目を登録する
- * Version: 1.9.0
+ * Version: 1.10.0
  * Author: M.Hanafusa
  */
 
@@ -325,3 +325,97 @@ function vellichor_save_book_meta( $post_id ) {
     }
 }
 add_action( 'save_post_vellichor_book', 'vellichor_save_book_meta' );
+
+// レビュー（投稿）に、つなぐ蔵書の ID を持たせる
+function vellichor_register_review_meta() {
+    register_post_meta(
+        'post',
+        '_vellichor_book_id',
+        array(
+            'type'          => 'integer',
+            'single'        => true,
+            'show_in_rest'  => true,
+            'auth_callback' => function () {
+                return current_user_can( 'edit_posts' );
+            },
+        )
+    );
+}
+add_action( 'init', 'vellichor_register_review_meta' );
+
+// レビュー（投稿）の編集画面に「つなぐ蔵書」の枠を出す
+function vellichor_add_review_meta_box() {
+    add_meta_box(
+        'vellichor_review_book',            // 枠の内部名
+        'つなぐ蔵書',                       // 枠の見出し
+        'vellichor_render_review_meta_box', // 中身を表示する関数
+        'post',                             // 出す画面（通常の投稿）
+        'side',                             // 右側の設定欄に出す
+        'high'                              // その中で上のほうに出す
+    );
+}
+add_action( 'add_meta_boxes', 'vellichor_add_review_meta_box' );
+
+// 枠の中身（蔵書を新しく登録した順に並べたプルダウン）
+function vellichor_render_review_meta_box( $post ) {
+    wp_nonce_field( 'vellichor_save_review_meta', 'vellichor_review_meta_nonce' );
+
+    $current = (int) get_post_meta( $post->ID, '_vellichor_book_id', true );
+
+    $books = get_posts(
+        array(
+            'post_type'      => 'vellichor_book',
+            'post_status'    => array( 'publish', 'future', 'draft', 'pending', 'private' ),
+            'posts_per_page' => -1,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        )
+    );
+    ?>
+    <select name="vellichor_book_id" id="vellichor_book_id" style="width:100%;">
+        <option value="0">（つながない）</option>
+        <?php foreach ( $books as $book ) : ?>
+            <?php
+            $number = (int) get_post_meta( $book->ID, '_vellichor_book_number', true );
+            $label  = $number ? sprintf( '%05d', $number ) : '番号なし';
+            if ( 'publish' !== $book->post_status ) {
+                $label .= '（下書き）';
+            }
+            ?>
+            <option value="<?php echo esc_attr( $book->ID ); ?>" <?php selected( $current, $book->ID ); ?>>
+                <?php echo esc_html( $label . ' ' . get_the_title( $book ) ); ?>
+            </option>
+        <?php endforeach; ?>
+    </select>
+    <?php
+}
+
+// 「つなぐ蔵書」で選ばれた蔵書を保存する
+function vellichor_save_review_meta( $post_id ) {
+
+    // 1. 正しい編集画面から送られたか（合言葉の照合）
+    if ( ! isset( $_POST['vellichor_review_meta_nonce'] )
+        || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['vellichor_review_meta_nonce'] ) ), 'vellichor_save_review_meta' ) ) {
+        return;
+    }
+
+    // 2. 自動保存のときは何もしない
+    if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+        return;
+    }
+
+    // 3. この投稿を編集する権限があるか
+    if ( ! current_user_can( 'edit_post', $post_id ) ) {
+        return;
+    }
+
+    $book_id = isset( $_POST['vellichor_book_id'] ) ? absint( $_POST['vellichor_book_id'] ) : 0;
+
+    // 選ばれた ID が本当に蔵書なら保存し、そうでなければ（「つながない」を含む）記録を消す
+    if ( $book_id && 'vellichor_book' === get_post_type( $book_id ) ) {
+        update_post_meta( $post_id, '_vellichor_book_id', $book_id );
+    } else {
+        delete_post_meta( $post_id, '_vellichor_book_id' );
+    }
+}
+add_action( 'save_post_post', 'vellichor_save_review_meta' );
