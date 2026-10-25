@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Vellichor Taxonomies
  * Description: 本棚に猫の蔵書と、著者・出版社・形式・ジャンル・特集・状態・装丁者・切り口・読み放題/聴き放題の分類、蔵書の書誌情報の項目を登録する
- * Version: 1.8.0
+ * Version: 1.9.0
  * Author: M.Hanafusa
  */
 
@@ -249,6 +249,32 @@ function vellichor_render_book_meta_box( $post ) {
     <?php
 }
 
+// 次の蔵書番号を求める（最後に振った番号と、今ある最大の番号の大きいほう＋1）
+function vellichor_next_book_number() {
+
+    $last = (int) get_option( 'vellichor_last_book_number', 0 );
+
+    $query = new WP_Query(
+        array(
+            'post_type'      => 'vellichor_book',
+            'post_status'    => array( 'publish', 'future', 'draft', 'pending', 'private', 'trash' ),
+            'meta_key'       => '_vellichor_book_number',
+            'orderby'        => 'meta_value_num',
+            'order'          => 'DESC',
+            'posts_per_page' => 1,
+            'fields'         => 'ids',
+            'no_found_rows'  => true,
+        )
+    );
+
+    if ( ! empty( $query->posts ) ) {
+        $max  = (int) get_post_meta( $query->posts[0], '_vellichor_book_number', true );
+        $last = max( $last, $max );
+    }
+
+    return $last + 1;
+}
+
 // 「書誌情報」の枠に入力された値を保存する
 function vellichor_save_book_meta( $post_id ) {
 
@@ -287,6 +313,15 @@ function vellichor_save_book_meta( $post_id ) {
         } else {
             update_post_meta( $post_id, $key, $value );
         }
+    }
+	
+    // 公開済みで蔵書番号がなければ、次の番号を振ってメモを更新する
+    if ( 'publish' === get_post_status( $post_id )
+        && ! get_post_meta( $post_id, '_vellichor_book_number', true ) ) {
+
+        $next = vellichor_next_book_number();
+        update_post_meta( $post_id, '_vellichor_book_number', $next );
+        update_option( 'vellichor_last_book_number', $next );
     }
 }
 add_action( 'save_post_vellichor_book', 'vellichor_save_book_meta' );
