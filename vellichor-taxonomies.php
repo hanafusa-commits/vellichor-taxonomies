@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Vellichor Taxonomies
- * Description: 本棚に猫の蔵書と、著者・出版社・形式・ジャンル・特集・状態・装丁者の分類を登録する
- * Version: 1.5.0
+ * Description: 本棚に猫の蔵書と、著者・出版社・形式・ジャンル・特集・状態・装丁者・切り口の分類を登録する
+ * Version: 1.6.0
  * Author: M.Hanafusa
  */
 
@@ -151,6 +151,20 @@ function vellichor_register_taxonomies() {
             'show_in_rest'      => true,
             'show_admin_column' => true,
             'rewrite'           => array( 'slug' => 'designer' ),
+        )
+    );
+	
+    // 切り口（「切り口で探す」区画の入口）
+    register_taxonomy(
+        'book_angle',
+        array( 'vellichor_book' ),
+        array(
+            'labels'            => vellichor_labels( '切り口' ),
+            'hierarchical'      => true,
+            'public'            => true,
+            'show_in_rest'      => true,
+            'show_admin_column' => true,
+            'rewrite'           => array( 'slug' => 'angle' ),
         )
     );
 }
