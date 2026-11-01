@@ -435,7 +435,35 @@ function vellichor_term_names( $post_id, $taxonomy ) {
     return esc_html( implode( '、', $names ) );
 }
 
-// [vellichor_book_info]：レビューにつないだ蔵書の書誌情報を表示する
+// 表示中のページに対応する蔵書の ID を返す（蔵書ならその本自身、レビューならつないだ本）。なければ 0
+function vellichor_current_book_id() {
+    $current_id = get_the_ID();
+    if ( 'vellichor_book' === get_post_type( $current_id ) ) {
+        return $current_id;
+    }
+    $book_id = (int) get_post_meta( $current_id, '_vellichor_book_id', true );
+    if ( $book_id && 'vellichor_book' === get_post_type( $book_id ) ) {
+        return $book_id;
+    }
+    return 0;
+}
+
+// ISBN-13（978 で始まるもの）を ISBN-10 に変換する。変換できなければ空
+function vellichor_isbn13_to_10( $isbn ) {
+    $digits = preg_replace( '/[^0-9]/', '', $isbn );
+    if ( 13 !== strlen( $digits ) || '978' !== substr( $digits, 0, 3 ) ) {
+        return '';
+    }
+    $core = substr( $digits, 3, 9 );
+    $sum  = 0;
+    for ( $i = 0; $i < 9; $i++ ) {
+        $sum += (int) $core[ $i ] * ( 10 - $i );
+    }
+    $check = ( 11 - ( $sum % 11 ) ) % 11;
+    return $core . ( 10 === $check ? 'X' : (string) $check );
+}
+
+// [vellichor_book_info]：表示中のページに対応する蔵書の書誌情報を表示する
 function vellichor_book_info_shortcode() {
 
     // 表示中のページが蔵書ならその本自身、レビューならつないだ蔵書を使う。なければ何も出さない
@@ -585,6 +613,36 @@ function vellichor_book_reviews_shortcode() {
 }
 add_shortcode( 'vellichor_book_reviews', 'vellichor_book_reviews_shortcode' );
 
+// [vellichor_book_links]：ISBN から Amazon とカーリルへのリンクを作る（広告表記つき）
+function vellichor_book_links_shortcode() {
+
+    $amazon_tag = 'orangecatsona-22'; // Amazon アソシエイトのトラッキング ID
+
+    // 表示中のページに対応する蔵書の ISBN を、10桁にして使う。作れなければ何も出さない
+    $book_id = vellichor_current_book_id();
+    if ( ! $book_id ) {
+        return '';
+    }
+    $isbn10 = vellichor_isbn13_to_10( get_post_meta( $book_id, '_vellichor_isbn', true ) );
+    if ( '' === $isbn10 ) {
+        return '';
+    }
+
+    $amazon_url = 'https://www.amazon.co.jp/dp/' . $isbn10 . '?tag=' . $amazon_tag;
+    $calil_url  = 'https://calil.jp/book/' . $isbn10;
+
+    $html  = '<div class="vellichor-book-links">';
+    $html .= '<div class="wp-block-buttons">';
+    $html .= '<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="' . esc_url( $amazon_url ) . '" target="_blank" rel="noopener sponsored">Amazonで見る</a></div>';
+    $html .= '<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="' . esc_url( $calil_url ) . '" target="_blank" rel="noopener">カーリルで図書館の蔵書を探す</a></div>';
+    $html .= '</div>';
+    $html .= '<p class="vellichor-ad-note">※このページにはプロモーション（広告）が含まれています。</p>';
+    $html .= '</div>';
+
+    return $html;
+}
+add_shortcode( 'vellichor_book_links', 'vellichor_book_links_shortcode' );
+
 // 書誌情報（.vellichor-book-info）の見た目：図書カード風の二段組
 function vellichor_book_info_styles() {
 $css = <<<'CSS'
@@ -612,7 +670,6 @@ $css = <<<'CSS'
 	font-size: inherit;
 	font-family: inherit;
 }
-
 .vellichor-book-reviews ul {
 	list-style: none;
 	margin: 0;
@@ -630,6 +687,19 @@ $css = <<<'CSS'
 	color: color-mix(in srgb, currentColor 65%, transparent);
 	font-size: 0.9em;
 	white-space: nowrap;
+}
+.vellichor-book-links {
+	margin: 2em 0;
+}
+.vellichor-book-links .wp-block-buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75em;
+}
+.vellichor-book-links .vellichor-ad-note {
+	margin-top: 1em;
+	font-size: 0.8em;
+	color: color-mix(in srgb, currentColor 65%, transparent);
 }
 
 @media (max-width: 600px) {
