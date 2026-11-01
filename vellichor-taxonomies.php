@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Vellichor Taxonomies
  * Description: 本棚に猫の蔵書と、著者・出版社・形式・ジャンル・特集・状態・装丁者・切り口・読み放題/聴き放題の分類、蔵書の書誌情報の項目を登録する
- * Version: 1.10.0
+ * Version: 1.11.0
  * Author: M.Hanafusa
  */
 
@@ -419,3 +419,120 @@ function vellichor_save_review_meta( $post_id ) {
     }
 }
 add_action( 'save_post_post', 'vellichor_save_review_meta' );
+
+// 「2026-11-16」を「2026年11月16日」の形にする
+function vellichor_format_date( $date ) {
+    list( $year, $month, $day ) = explode( '-', $date );
+    return sprintf( '%d年%d月%d日', $year, $month, $day );
+}
+
+// 本に付いた分類の用語名を「、」でつないで返す（リンクなし）。なければ空
+function vellichor_term_names( $post_id, $taxonomy ) {
+    $names = wp_get_post_terms( $post_id, $taxonomy, array( 'fields' => 'names' ) );
+    if ( is_wp_error( $names ) || empty( $names ) ) {
+        return '';
+    }
+    return esc_html( implode( '、', $names ) );
+}
+
+// [vellichor_book_info]：レビューにつないだ蔵書の書誌情報を表示する
+function vellichor_book_info_shortcode() {
+
+    // 表示中の記事につないだ蔵書を調べる。なければ何も出さない
+    $book_id = (int) get_post_meta( get_the_ID(), '_vellichor_book_id', true );
+    if ( ! $book_id || 'vellichor_book' !== get_post_type( $book_id ) ) {
+        return '';
+    }
+
+    // 見出し => 表示する中身（HTML）。値がある項目だけ、表の順に足していく
+    $rows = array();
+
+    // 蔵書番号
+    $number = (int) get_post_meta( $book_id, '_vellichor_book_number', true );
+    if ( $number ) {
+        $rows['蔵書番号'] = esc_html( sprintf( '%05d', $number ) );
+    }
+
+    // 書名（公開済みの蔵書なら、蔵書のページへのリンクにする）
+    $title = esc_html( get_the_title( $book_id ) );
+    if ( 'publish' === get_post_status( $book_id ) ) {
+        $title = '<a href="' . esc_url( get_permalink( $book_id ) ) . '">' . $title . '</a>';
+    }
+    $rows['書名'] = $title;
+
+    // 著者・装丁者・出版社（それぞれの一覧ページへのリンク）
+    $linked = array(
+        'book_writer'    => '著者',
+        'book_designer'  => '装丁者',
+        'book_publisher' => '出版社',
+    );
+    foreach ( $linked as $taxonomy => $label ) {
+        $list = get_the_term_list( $book_id, $taxonomy, '', '、' );
+        if ( $list && ! is_wp_error( $list ) ) {
+            $rows[ $label ] = $list;
+        }
+    }
+
+    // 刊行日
+    $pub_date = get_post_meta( $book_id, '_vellichor_pub_date', true );
+    if ( $pub_date ) {
+        $rows['刊行日'] = esc_html( vellichor_format_date( $pub_date ) );
+    }
+
+    // 形式
+    $format = vellichor_term_names( $book_id, 'book_format' );
+    if ( $format ) {
+        $rows['形式'] = $format;
+    }
+
+    // ISBN
+    $isbn = get_post_meta( $book_id, '_vellichor_isbn', true );
+    if ( $isbn ) {
+        $rows['ISBN'] = esc_html( $isbn );
+    }
+
+    // 状態
+    $status = vellichor_term_names( $book_id, 'book_status' );
+    if ( $status ) {
+        $rows['状態'] = $status;
+    }
+
+    // 読み放題・聴き放題（サービスごとの確認日を添える）
+    $checked_keys = array(
+        'kindle-plus' => '_vellichor_kindle_checked',
+        'audible'     => '_vellichor_audible_checked',
+    );
+    $services = wp_get_post_terms( $book_id, 'book_subscription' );
+    $parts    = array();
+    if ( ! is_wp_error( $services ) ) {
+        foreach ( $services as $term ) {
+            $text = esc_html( $term->name );
+            if ( isset( $checked_keys[ $term->slug ] ) ) {
+                $checked = get_post_meta( $book_id, $checked_keys[ $term->slug ], true );
+                if ( $checked ) {
+                    $text .= '（' . esc_html( vellichor_format_date( $checked ) ) . '確認）';
+                }
+            }
+            $parts[] = $text;
+        }
+    }
+    if ( $parts ) {
+        $rows['読み放題・聴き放題'] = implode( '、', $parts );
+    }
+
+    // 選者・出典
+    $selector = get_post_meta( $book_id, '_vellichor_selector', true );
+    if ( $selector ) {
+        $rows['選者・出典'] = esc_html( $selector );
+    }
+
+    // 見出しと中身を、図書カードのような一覧（dl）に組み立てて返す
+    $html = '<dl class="vellichor-book-info">';
+    foreach ( $rows as $label => $value ) {
+        $html .= '<dt>' . esc_html( $label ) . '</dt><dd>' . $value . '</dd>';
+    }
+    $html .= '</dl>';
+
+    return $html;
+}
+add_shortcode( 'vellichor_book_info', 'vellichor_book_info_shortcode' );
