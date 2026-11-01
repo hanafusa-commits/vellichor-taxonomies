@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Vellichor Taxonomies
  * Description: 本棚に猫の蔵書と、著者・出版社・形式・ジャンル・特集・状態・装丁者・切り口・読み放題/聴き放題の分類、蔵書の書誌情報の項目を登録する
- * Version: 1.12.0
+ * Version: 1.13.0
  * Author: M.Hanafusa
  */
 
@@ -438,8 +438,13 @@ function vellichor_term_names( $post_id, $taxonomy ) {
 // [vellichor_book_info]：レビューにつないだ蔵書の書誌情報を表示する
 function vellichor_book_info_shortcode() {
 
-    // 表示中の記事につないだ蔵書を調べる。なければ何も出さない
-    $book_id = (int) get_post_meta( get_the_ID(), '_vellichor_book_id', true );
+    // 表示中のページが蔵書ならその本自身、レビューならつないだ蔵書を使う。なければ何も出さない
+    $current_id = get_the_ID();
+    if ( 'vellichor_book' === get_post_type( $current_id ) ) {
+        $book_id = $current_id;
+    } else {
+        $book_id = (int) get_post_meta( $current_id, '_vellichor_book_id', true );
+    }
     if ( ! $book_id || 'vellichor_book' !== get_post_type( $book_id ) ) {
         return '';
     }
@@ -453,12 +458,14 @@ function vellichor_book_info_shortcode() {
         $rows['蔵書番号'] = esc_html( sprintf( '%05d', $number ) );
     }
 
-    // 書名（公開済みの蔵書なら、蔵書のページへのリンクにする）
-    $title = esc_html( get_the_title( $book_id ) );
-    if ( 'publish' === get_post_status( $book_id ) ) {
-        $title = '<a href="' . esc_url( get_permalink( $book_id ) ) . '">' . $title . '</a>';
+    // 書名（レビューのページでだけ出す。公開済みの蔵書なら、蔵書のページへのリンクにする）
+    if ( $book_id !== $current_id ) {
+        $title = esc_html( get_the_title( $book_id ) );
+        if ( 'publish' === get_post_status( $book_id ) ) {
+            $title = '<a href="' . esc_url( get_permalink( $book_id ) ) . '">' . $title . '</a>';
+        }
+        $rows['書名'] = $title;
     }
-    $rows['書名'] = $title;
 
     // 著者・装丁者・出版社（それぞれの一覧ページへのリンク）
     $linked = array(
@@ -537,6 +544,47 @@ function vellichor_book_info_shortcode() {
 }
 add_shortcode( 'vellichor_book_info', 'vellichor_book_info_shortcode' );
 
+// [vellichor_book_reviews]：蔵書のページに、その本につながっているレビューを並べる
+function vellichor_book_reviews_shortcode() {
+
+    // 蔵書のページでだけ使う
+    $book_id = get_the_ID();
+    if ( 'vellichor_book' !== get_post_type( $book_id ) ) {
+        return '';
+    }
+
+    // この本の ID を「つなぐ蔵書」に持っている、公開済みのレビューを新しい順に探す
+    $reviews = get_posts(
+        array(
+            'post_type'      => 'post',
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'meta_key'       => '_vellichor_book_id',
+            'meta_value'     => $book_id,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        )
+    );
+
+    // レビューがまだなければ、見出しごと何も出さない
+    if ( empty( $reviews ) ) {
+        return '';
+    }
+
+    $html  = '<section class="vellichor-book-reviews">';
+    $html .= '<h2>この本のレビュー</h2><ul>';
+    foreach ( $reviews as $review ) {
+        $html .= '<li>';
+        $html .= '<a href="' . esc_url( get_permalink( $review ) ) . '">' . esc_html( get_the_title( $review ) ) . '</a>';
+        $html .= '<time datetime="' . esc_attr( get_the_date( 'Y-m-d', $review ) ) . '">' . esc_html( get_the_date( 'Y年n月j日', $review ) ) . '</time>';
+        $html .= '</li>';
+    }
+    $html .= '</ul></section>';
+
+    return $html;
+}
+add_shortcode( 'vellichor_book_reviews', 'vellichor_book_reviews_shortcode' );
+
 // 書誌情報（.vellichor-book-info）の見た目：図書カード風の二段組
 function vellichor_book_info_styles() {
 $css = <<<'CSS'
@@ -563,6 +611,25 @@ $css = <<<'CSS'
 .vellichor-book-info a {
 	font-size: inherit;
 	font-family: inherit;
+}
+
+.vellichor-book-reviews ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	border-top: 1px solid currentColor;
+}
+.vellichor-book-reviews li {
+	display: flex;
+	justify-content: space-between;
+	gap: 1em;
+	padding: 0.5em 0;
+	border-bottom: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+}
+.vellichor-book-reviews time {
+	color: color-mix(in srgb, currentColor 65%, transparent);
+	font-size: 0.9em;
+	white-space: nowrap;
 }
 
 @media (max-width: 600px) {
