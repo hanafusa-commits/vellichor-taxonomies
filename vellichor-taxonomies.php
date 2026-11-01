@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Vellichor Taxonomies
  * Description: 本棚に猫の蔵書と、著者・出版社・形式・ジャンル・特集・状態・装丁者・切り口・読み放題/聴き放題の分類、蔵書の書誌情報の項目を登録する
- * Version: 1.11.0
+ * Version: 1.12.0
  * Author: M.Hanafusa
  */
 
@@ -536,3 +536,43 @@ function vellichor_book_info_shortcode() {
     return $html;
 }
 add_shortcode( 'vellichor_book_info', 'vellichor_book_info_shortcode' );
+
+// 書誌情報（.vellichor-book-info）の見た目：図書カード風の二段組
+function vellichor_book_info_styles() {
+$css = <<<'CSS'
+.vellichor-book-info {
+	display: grid;
+	grid-template-columns: 8em 1fr;
+	margin: 1.5em 0 2em;
+	border-top: 1px solid currentColor;
+	font-size: 0.9em;
+}
+.vellichor-book-info dt,
+.vellichor-book-info dd {
+	margin: 0;
+	padding: 0.5em 0;
+	border-bottom: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+}
+.vellichor-book-info dt {
+	color: color-mix(in srgb, currentColor 65%, transparent);
+	letter-spacing: 0.05em;
+}
+.vellichor-book-info dd {
+	padding-left: 1em;
+}
+.vellichor-book-info a {
+	font-size: inherit;
+	font-family: inherit;
+}
+
+@media (max-width: 600px) {
+	.vellichor-book-info {
+		grid-template-columns: 6.5em 1fr;
+	}
+}
+CSS;
+	wp_register_style( 'vellichor-book-info', false );
+	wp_enqueue_style( 'vellichor-book-info' );
+	wp_add_inline_style( 'vellichor-book-info', $css );
+}
+add_action( 'wp_enqueue_scripts', 'vellichor_book_info_styles' );
