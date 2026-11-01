@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Vellichor Taxonomies
  * Description: 本棚に猫の蔵書と、著者・出版社・形式・ジャンル・特集・状態・装丁者・切り口・読み放題/聴き放題の分類、蔵書の書誌情報の項目を登録する
- * Version: 1.13.0
+ * Version: 1.15.0
  * Author: M.Hanafusa
  */
 
@@ -643,6 +643,46 @@ function vellichor_book_links_shortcode() {
 }
 add_shortcode( 'vellichor_book_links', 'vellichor_book_links_shortcode' );
 
+// [vellichor_catalog]：蔵書の一覧ページに、小さな表紙つきの目録を並べる
+function vellichor_catalog_shortcode() {
+    global $wp_query;
+
+    // 蔵書の一覧ページでだけ使う
+    if ( ! is_post_type_archive( 'vellichor_book' ) ) {
+        return '';
+    }
+    if ( ! $wp_query->have_posts() ) {
+        return '<p>まだ蔵書は登録されていません。</p>';
+    }
+
+    $html = '<ol class="vellichor-catalog">';
+    foreach ( $wp_query->posts as $book ) {
+        $link   = esc_url( get_permalink( $book ) );
+        $number = (int) get_post_meta( $book->ID, '_vellichor_book_number', true );
+        $cover  = get_the_post_thumbnail( $book, 'medium', array( 'alt' => '', 'loading' => 'lazy' ) );
+
+        $html .= '<li class="vellichor-catalog__item">';
+        $html .= '<a class="vellichor-catalog__cover" href="' . $link . '" tabindex="-1" aria-hidden="true">' . $cover . '</a>';
+        $html .= '<span class="vellichor-catalog__number">' . ( $number ? esc_html( sprintf( '%05d', $number ) ) : '' ) . '</span>';
+        $html .= '<a class="vellichor-catalog__title" href="' . $link . '">' . esc_html( get_the_title( $book ) ) . '</a>';
+        $html .= '<span class="vellichor-catalog__writer">' . vellichor_term_names( $book->ID, 'book_writer' ) . '</span>';
+        $html .= '<span class="vellichor-catalog__status">' . vellichor_term_names( $book->ID, 'book_status' ) . '</span>';
+        $html .= '</li>';
+    }
+    $html .= '</ol>';
+
+    // 30冊を超えたときの「前へ・次へ」
+    $html .= get_the_posts_pagination(
+        array(
+            'prev_text' => '前へ',
+            'next_text' => '次へ',
+        )
+    );
+
+    return $html;
+}
+add_shortcode( 'vellichor_catalog', 'vellichor_catalog_shortcode' );
+
 // 書誌情報（.vellichor-book-info）の見た目：図書カード風の二段組
 function vellichor_book_info_styles() {
 $css = <<<'CSS'
@@ -701,10 +741,50 @@ $css = <<<'CSS'
 	font-size: 0.8em;
 	color: color-mix(in srgb, currentColor 65%, transparent);
 }
+.vellichor-catalog {
+	list-style: none;
+	margin: 1.5em 0 0;
+	padding: 0;
+	border-top: 1px solid currentColor;
+}
+.vellichor-catalog__item {
+	display: grid;
+	grid-template-columns: 3em 5em 1fr 12em 5em;
+	align-items: center;
+	gap: 1em;
+	padding: 0.6em 0;
+	border-bottom: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+	font-size: 0.9em;
+}
+.vellichor-catalog__cover img {
+	display: block;
+	width: 100%;
+	height: auto;
+}
+.vellichor-catalog__number,
+.vellichor-catalog__status {
+	color: color-mix(in srgb, currentColor 65%, transparent);
+	letter-spacing: 0.05em;
+}
+.vellichor-catalog__number {
+	font-variant-numeric: lining-nums tabular-nums;
+}
+.vellichor-catalog__title {
+	font-size: inherit;
+	font-family: inherit;
+}
 
 @media (max-width: 600px) {
 	.vellichor-book-info {
 		grid-template-columns: 6.5em 1fr;
+	}
+		.vellichor-catalog__item {
+		grid-template-columns: 3.5em 1fr;
+		align-items: start;
+		gap: 0.2em 1em;
+	}
+	.vellichor-catalog__cover {
+		grid-row: span 4;
 	}
 }
 CSS;
@@ -713,3 +793,17 @@ CSS;
 	wp_add_inline_style( 'vellichor-book-info', $css );
 }
 add_action( 'wp_enqueue_scripts', 'vellichor_book_info_styles' );
+
+// 蔵書の一覧（/catalog/）では、蔵書番号の大きい順に1ページ30冊ずつ並べる
+function vellichor_catalog_query( $query ) {
+    if ( is_admin() || ! $query->is_main_query() ) {
+        return;
+    }
+    if ( $query->is_post_type_archive( 'vellichor_book' ) ) {
+        $query->set( 'meta_key', '_vellichor_book_number' );
+        $query->set( 'orderby', 'meta_value_num' );
+        $query->set( 'order', 'DESC' );
+        $query->set( 'posts_per_page', 30 );
+    }
+}
+add_action( 'pre_get_posts', 'vellichor_catalog_query' );
