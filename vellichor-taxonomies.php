@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Vellichor Taxonomies
  * Description: 本棚に猫の蔵書と、著者・出版社・形式・ジャンル・特集・状態・装丁者・切り口・読み放題/聴き放題の分類、蔵書の書誌情報の項目を登録する
- * Version: 1.16.0
+ * Version: 1.17.0
  * Author: M.Hanafusa
  */
 
@@ -647,8 +647,8 @@ add_shortcode( 'vellichor_book_links', 'vellichor_book_links_shortcode' );
 function vellichor_catalog_shortcode() {
     global $wp_query;
 
-    // 蔵書の一覧ページでだけ使う
-    if ( ! is_post_type_archive( 'vellichor_book' ) ) {
+    // 蔵書の一覧ページと、蔵書だけの分類の一覧ページでだけ使う
+    if ( ! is_post_type_archive( 'vellichor_book' ) && ! is_tax( vellichor_book_only_taxonomies() ) ) {
         return '';
     }
     if ( ! $wp_query->have_posts() ) {
@@ -870,12 +870,17 @@ CSS;
 }
 add_action( 'wp_enqueue_scripts', 'vellichor_book_info_styles' );
 
-// 蔵書の一覧（/catalog/）では、蔵書番号の大きい順に1ページ30冊ずつ並べる
+// 蔵書にだけ付けている分類（一覧ページを目録の形で表示する対象）
+function vellichor_book_only_taxonomies() {
+    return array( 'book_status', 'book_designer', 'book_angle', 'book_subscription' );
+}
+
+// 蔵書の一覧（/catalog/）と、蔵書だけの分類の一覧では、蔵書番号の大きい順に1ページ30冊ずつ並べる
 function vellichor_catalog_query( $query ) {
     if ( is_admin() || ! $query->is_main_query() ) {
         return;
     }
-    if ( $query->is_post_type_archive( 'vellichor_book' ) ) {
+    if ( $query->is_post_type_archive( 'vellichor_book' ) || $query->is_tax( vellichor_book_only_taxonomies() ) ) {
         $query->set( 'meta_key', '_vellichor_book_number' );
         $query->set( 'orderby', 'meta_value_num' );
         $query->set( 'order', 'DESC' );
