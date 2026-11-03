@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Vellichor Taxonomies
  * Description: 本棚に猫の蔵書と、著者・出版社・形式・ジャンル・特集・状態・装丁者・切り口・読み放題/聴き放題の分類、蔵書の書誌情報の項目を登録する
- * Version: 1.17.0
+ * Version: 1.18.0
  * Author: M.Hanafusa
  */
 
@@ -723,6 +723,58 @@ function vellichor_recent_books_shortcode( $atts ) {
 }
 add_shortcode( 'vellichor_recent_books', 'vellichor_recent_books_shortcode' );
 
+// [vellichor_explore]：「切り口で探す」の入口を並べる（本がない入口は出さない）
+function vellichor_explore_shortcode() {
+
+    $entries = array();
+
+    // 切り口：登録されている言葉を、本のあるものだけ全部
+    $angles = get_terms(
+        array(
+            'taxonomy'   => 'book_angle',
+            'hide_empty' => true,
+        )
+    );
+    if ( ! is_wp_error( $angles ) ) {
+        foreach ( $angles as $term ) {
+            $entries[] = array( 'term' => $term, 'label' => $term->name );
+        }
+    }
+
+    // 別の分類から加える入口（分類, スラッグ, 区画での呼び名）
+    $extras = array(
+        array( 'book_status', 'kanko-yotei', 'これから出る本' ),
+        array( 'book_subscription', 'kindle-plus', 'Kindle+ で読める本' ),
+        array( 'book_subscription', 'audible', 'Audible で聴ける本' ),
+    );
+    foreach ( $extras as $extra ) {
+        $term = get_term_by( 'slug', $extra[1], $extra[0] );
+        if ( $term && $term->count > 0 ) {
+            $entries[] = array( 'term' => $term, 'label' => $extra[2] );
+        }
+    }
+
+    if ( empty( $entries ) ) {
+        return '';
+    }
+
+    $html = '<ul class="vellichor-explore alignwide">';
+    foreach ( $entries as $entry ) {
+        $link = get_term_link( $entry['term'] );
+        if ( is_wp_error( $link ) ) {
+            continue;
+        }
+        $html .= '<li><a href="' . esc_url( $link ) . '">';
+        $html .= '<span class="vellichor-explore__label">' . esc_html( $entry['label'] ) . '</span>';
+        $html .= '<span class="vellichor-explore__count">' . esc_html( $entry['term']->count ) . '冊</span>';
+        $html .= '</a></li>';
+    }
+    $html .= '</ul>';
+
+    return $html;
+}
+add_shortcode( 'vellichor_explore', 'vellichor_explore_shortcode' );
+
 // 書誌情報（.vellichor-book-info）の見た目：図書カード風の二段組
 function vellichor_book_info_styles() {
 $css = <<<'CSS'
@@ -844,6 +896,39 @@ $css = <<<'CSS'
 	font-size: 0.85em;
 	line-height: 1.5;
 }
+.vellichor-explore {
+	list-style: none;
+	margin: 2.5em 0;
+	padding: 0;
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	gap: 1em;
+}
+.vellichor-explore a {
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	height: 100%;
+	min-height: 5.5em;
+	box-sizing: border-box;
+	padding: 1em;
+	border: 1px solid color-mix(in srgb, currentColor 40%, transparent);
+	color: inherit;
+	text-decoration: none;
+}
+.vellichor-explore a:hover {
+	border-color: currentColor;
+}
+.vellichor-explore__label {
+	font-size: 0.95em;
+	line-height: 1.5;
+}
+.vellichor-explore__count {
+	margin-top: 0.8em;
+	font-size: 0.8em;
+	color: color-mix(in srgb, currentColor 65%, transparent);
+	font-variant-numeric: lining-nums;
+}
 
 @media (max-width: 600px) {
 	.vellichor-book-info {
@@ -860,6 +945,9 @@ $css = <<<'CSS'
 	.vellichor-recent-books {
 		grid-template-columns: repeat(3, 1fr);
 		gap: 1em;
+	}
+	.vellichor-explore {
+		grid-template-columns: repeat(2, 1fr);
 	}
 }
 
