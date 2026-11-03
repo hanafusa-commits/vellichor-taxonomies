@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Vellichor Taxonomies
  * Description: 本棚に猫の蔵書と、著者・出版社・形式・ジャンル・特集・状態・装丁者・切り口・読み放題/聴き放題の分類、蔵書の書誌情報の項目を登録する
- * Version: 1.15.0
+ * Version: 1.16.0
  * Author: M.Hanafusa
  */
 
@@ -683,6 +683,46 @@ function vellichor_catalog_shortcode() {
 }
 add_shortcode( 'vellichor_catalog', 'vellichor_catalog_shortcode' );
 
+// [vellichor_recent_books]：最近登録した蔵書を、表紙と蔵書番号・書名で並べる
+function vellichor_recent_books_shortcode( $atts ) {
+
+    // 並べる冊数（何も指定しなければ6冊）
+    $atts = shortcode_atts( array( 'count' => 6 ), $atts, 'vellichor_recent_books' );
+
+    // 公開済みの蔵書を、蔵書番号の大きい順（＝登録の新しい順）に取り出す
+    $books = get_posts(
+        array(
+            'post_type'      => 'vellichor_book',
+            'post_status'    => 'publish',
+            'posts_per_page' => absint( $atts['count'] ),
+            'meta_key'       => '_vellichor_book_number',
+            'orderby'        => 'meta_value_num',
+            'order'          => 'DESC',
+        )
+    );
+    if ( empty( $books ) ) {
+        return '';
+    }
+
+    $html = '<ul class="vellichor-recent-books alignwide">';
+    foreach ( $books as $book ) {
+        $number = (int) get_post_meta( $book->ID, '_vellichor_book_number', true );
+        $cover  = get_the_post_thumbnail( $book, 'medium', array( 'alt' => '', 'loading' => 'lazy' ) );
+
+        $html .= '<li class="vellichor-recent-books__item">';
+        $html .= '<a href="' . esc_url( get_permalink( $book ) ) . '">';
+        $html .= '<span class="vellichor-recent-books__cover">' . $cover . '</span>';
+        $html .= '<span class="vellichor-recent-books__number">' . ( $number ? esc_html( sprintf( '%05d', $number ) ) : '' ) . '</span>';
+        $html .= '<span class="vellichor-recent-books__title">' . esc_html( get_the_title( $book ) ) . '</span>';
+        $html .= '</a>';
+        $html .= '</li>';
+    }
+    $html .= '</ul>';
+
+    return $html;
+}
+add_shortcode( 'vellichor_recent_books', 'vellichor_recent_books_shortcode' );
+
 // 書誌情報（.vellichor-book-info）の見た目：図書カード風の二段組
 function vellichor_book_info_styles() {
 $css = <<<'CSS'
@@ -773,6 +813,37 @@ $css = <<<'CSS'
 	font-size: inherit;
 	font-family: inherit;
 }
+.vellichor-recent-books {
+	list-style: none;
+	margin: 2.5em 0;
+	padding: 0;
+	display: grid;
+	grid-template-columns: repeat(6, 1fr);
+	gap: 1.5em;
+}
+.vellichor-recent-books__item a {
+	display: block;
+	color: inherit;
+	text-decoration: none;
+}
+.vellichor-recent-books__cover img {
+	display: block;
+	width: 100%;
+	height: auto;
+}
+.vellichor-recent-books__number {
+	display: block;
+	margin-top: 0.6em;
+	font-size: 0.8em;
+	letter-spacing: 0.05em;
+	color: color-mix(in srgb, currentColor 65%, transparent);
+	font-variant-numeric: lining-nums tabular-nums;
+}
+.vellichor-recent-books__title {
+	display: block;
+	font-size: 0.85em;
+	line-height: 1.5;
+}
 
 @media (max-width: 600px) {
 	.vellichor-book-info {
@@ -786,7 +857,12 @@ $css = <<<'CSS'
 	.vellichor-catalog__cover {
 		grid-row: span 4;
 	}
+	.vellichor-recent-books {
+		grid-template-columns: repeat(3, 1fr);
+		gap: 1em;
+	}
 }
+
 CSS;
 	wp_register_style( 'vellichor-book-info', false );
 	wp_enqueue_style( 'vellichor-book-info' );
