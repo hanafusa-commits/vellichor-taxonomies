@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Vellichor Taxonomies
  * Description: 本棚に猫の蔵書と、著者・出版社・形式・ジャンル・特集・状態・装丁者・切り口・読み放題/聴き放題の分類、蔵書の書誌情報の項目を登録する
- * Version: 1.19.0
+* Version: 1.20.0
  * Author: M.Hanafusa
  */
 
@@ -647,12 +647,13 @@ add_shortcode( 'vellichor_book_links', 'vellichor_book_links_shortcode' );
 function vellichor_catalog_shortcode() {
     global $wp_query;
 
-    // 蔵書の一覧ページと、蔵書だけの分類の一覧ページでだけ使う
-    if ( ! is_post_type_archive( 'vellichor_book' ) && ! is_tax( vellichor_book_only_taxonomies() ) ) {
+    // 蔵書の一覧ページと、分類の一覧ページでだけ使う
+    if ( ! is_post_type_archive( 'vellichor_book' ) && ! is_tax( vellichor_catalog_taxonomies() ) ) {
         return '';
     }
+    // 蔵書がない場合：蔵書目録ではお知らせを出し、分類の一覧では区画ごと出さない
     if ( ! $wp_query->have_posts() ) {
-        return '<p>まだ蔵書は登録されていません。</p>';
+        return is_post_type_archive( 'vellichor_book' ) ? '<p>まだ蔵書は登録されていません。</p>' : '';
     }
 
     $html = '<ol class="vellichor-catalog">';
@@ -775,6 +776,56 @@ function vellichor_explore_shortcode() {
 }
 add_shortcode( 'vellichor_explore', 'vellichor_explore_shortcode' );
 
+// [vellichor_term_reviews]：著者・ジャンルなどの一覧ページに、その用語が付いたレビューを並べる
+function vellichor_term_reviews_shortcode() {
+
+    // レビューと蔵書の両方に付けている分類の一覧ページでだけ使う
+    if ( ! is_tax( vellichor_shared_taxonomies() ) ) {
+        return '';
+    }
+    $term = get_queried_object();
+    if ( ! $term instanceof WP_Term ) {
+        return '';
+    }
+
+    // この用語が付いた、公開済みのレビューを新しい順に探す
+    $reviews = get_posts(
+        array(
+            'post_type'      => 'post',
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+            'tax_query'      => array(
+                array(
+                    'taxonomy'         => $term->taxonomy,
+                    'field'            => 'term_id',
+                    'terms'            => $term->term_id,
+                    'include_children' => true,
+                ),
+            ),
+        )
+    );
+
+    // レビューがなければ、見出しごと何も出さない
+    if ( empty( $reviews ) ) {
+        return '';
+    }
+
+    $html  = '<section class="vellichor-book-reviews">';
+    $html .= '<h2>レビュー</h2><ul>';
+    foreach ( $reviews as $review ) {
+        $html .= '<li>';
+        $html .= '<a href="' . esc_url( get_permalink( $review ) ) . '">' . esc_html( get_the_title( $review ) ) . '</a>';
+        $html .= '<time datetime="' . esc_attr( get_the_date( 'Y-m-d', $review ) ) . '">' . esc_html( get_the_date( 'Y年n月j日', $review ) ) . '</time>';
+        $html .= '</li>';
+    }
+    $html .= '</ul></section>';
+
+    return $html;
+}
+add_shortcode( 'vellichor_term_reviews', 'vellichor_term_reviews_shortcode' );
+
 // 書誌情報（.vellichor-book-info）の見た目：図書カード風の二段組
 function vellichor_book_info_styles() {
 $css = <<<'CSS'
@@ -819,7 +870,12 @@ $css = <<<'CSS'
 	color: color-mix(in srgb, currentColor 65%, transparent);
 	font-size: 0.9em;
 	white-space: nowrap;
+    font-variant-numeric: lining-nums;
 }
+.vellichor-book-reviews h2 {
+	font-size: 1.4em;
+}
+
 .vellichor-book-links {
 	margin: 2em 0;
 }
@@ -963,12 +1019,23 @@ function vellichor_book_only_taxonomies() {
     return array( 'book_status', 'book_designer', 'book_angle', 'book_subscription' );
 }
 
-// 蔵書の一覧（/catalog/）と、蔵書だけの分類の一覧では、蔵書番号の大きい順に1ページ30冊ずつ並べる
+// レビューと蔵書の両方に付けている分類（一覧ページでは、蔵書を目録の形で、レビューを別の区画で表示する）
+function vellichor_shared_taxonomies() {
+    return array( 'book_writer', 'book_publisher', 'book_format', 'book_genre', 'book_feature' );
+}
+
+// 目録の形で表示する分類（上の二つを合わせたもの）
+function vellichor_catalog_taxonomies() {
+    return array_merge( vellichor_book_only_taxonomies(), vellichor_shared_taxonomies() );
+}
+
+// 蔵書の一覧（/catalog/）と分類の一覧では、蔵書だけを、蔵書番号の大きい順に1ページ30冊ずつ並べる
 function vellichor_catalog_query( $query ) {
     if ( is_admin() || ! $query->is_main_query() ) {
         return;
     }
-    if ( $query->is_post_type_archive( 'vellichor_book' ) || $query->is_tax( vellichor_book_only_taxonomies() ) ) {
+    if ( $query->is_post_type_archive( 'vellichor_book' ) || $query->is_tax( vellichor_catalog_taxonomies() ) ) {
+        $query->set( 'post_type', 'vellichor_book' );
         $query->set( 'meta_key', '_vellichor_book_number' );
         $query->set( 'orderby', 'meta_value_num' );
         $query->set( 'order', 'DESC' );
