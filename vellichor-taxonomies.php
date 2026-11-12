@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Vellichor Taxonomies
  * Description: 本棚に猫の蔵書と、著者・出版社・形式・ジャンル・特集・状態・装丁者・切り口・読み放題/聴き放題の分類、蔵書の書誌情報の項目を登録する
-* Version: 1.20.0
+* Version: 1.21.0
  * Author: M.Hanafusa
  */
 
@@ -67,6 +67,8 @@ function vellichor_register_taxonomies() {
 			'show_in_rest'      => true,
 			'show_admin_column' => true,
 			'rewrite'           => array( 'slug' => 'writer' ),
+            'sort'         => true,
+            'args'         => array( 'orderby' => 'term_order' ),
 		)
 	);
 
@@ -427,12 +429,18 @@ function vellichor_format_date( $date ) {
 }
 
 // 本に付いた分類の用語名を「、」でつないで返す（リンクなし）。なければ空
-function vellichor_term_names( $post_id, $taxonomy ) {
+// $limit を指定すると、その人数を超えた分を「ほか」にまとめる（0 は全員）
+function vellichor_term_names( $post_id, $taxonomy, $limit = 0 ) {
     $names = wp_get_post_terms( $post_id, $taxonomy, array( 'fields' => 'names' ) );
     if ( is_wp_error( $names ) || empty( $names ) ) {
         return '';
     }
-    return esc_html( implode( '、', $names ) );
+    $more = false;
+    if ( $limit > 0 && count( $names ) > $limit ) {
+        $names = array_slice( $names, 0, $limit );
+        $more  = true;
+    }
+    return esc_html( implode( '、', $names ) ) . ( $more ? ' ほか' : '' );
 }
 
 // 表示中のページに対応する蔵書の ID を返す（蔵書ならその本自身、レビューならつないだ本）。なければ 0
@@ -666,7 +674,7 @@ function vellichor_catalog_shortcode() {
         $html .= '<a class="vellichor-catalog__cover" href="' . $link . '" tabindex="-1" aria-hidden="true">' . $cover . '</a>';
         $html .= '<span class="vellichor-catalog__number">' . ( $number ? esc_html( sprintf( '%05d', $number ) ) : '' ) . '</span>';
         $html .= '<a class="vellichor-catalog__title" href="' . $link . '">' . esc_html( get_the_title( $book ) ) . '</a>';
-        $html .= '<span class="vellichor-catalog__writer">' . vellichor_term_names( $book->ID, 'book_writer' ) . '</span>';
+        $html .= '<span class="vellichor-catalog__writer">' . vellichor_term_names( $book->ID, 'book_writer', 3 ) . '</span>';
         $html .= '<span class="vellichor-catalog__status">' . vellichor_term_names( $book->ID, 'book_status' ) . '</span>';
         $html .= '</li>';
     }
