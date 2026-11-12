@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Vellichor Taxonomies
  * Description: 本棚に猫の蔵書と、著者・出版社・形式・ジャンル・特集・状態・装丁者・切り口・読み放題/聴き放題の分類、蔵書の書誌情報の項目を登録する
- * Version: 1.18.0
+ * Version: 1.19.0
  * Author: M.Hanafusa
  */
 
@@ -976,3 +976,45 @@ function vellichor_catalog_query( $query ) {
     }
 }
 add_action( 'pre_get_posts', 'vellichor_catalog_query' );
+
+// 管理画面の蔵書一覧に「蔵書番号」の列を足す（タイトルの左）
+function vellichor_admin_book_columns( $columns ) {
+    $new = array();
+    foreach ( $columns as $key => $label ) {
+        if ( 'title' === $key ) {
+            $new['vellichor_book_number'] = '蔵書番号';
+        }
+        $new[ $key ] = $label;
+    }
+    return $new;
+}
+add_filter( 'manage_vellichor_book_posts_columns', 'vellichor_admin_book_columns' );
+
+// 列の中身（5桁の番号。なければ「—」）
+function vellichor_admin_book_column_content( $column, $post_id ) {
+    if ( 'vellichor_book_number' !== $column ) {
+        return;
+    }
+    $number = (int) get_post_meta( $post_id, '_vellichor_book_number', true );
+    echo $number ? esc_html( sprintf( '%05d', $number ) ) : '—';
+}
+add_action( 'manage_vellichor_book_posts_custom_column', 'vellichor_admin_book_column_content', 10, 2 );
+
+// 列の見出しを押すと、番号順に並べ替えられるようにする
+function vellichor_admin_book_sortable( $columns ) {
+    $columns['vellichor_book_number'] = 'vellichor_book_number';
+    return $columns;
+}
+add_filter( 'manage_edit-vellichor_book_sortable_columns', 'vellichor_admin_book_sortable' );
+
+// 並べ替えの指定を、蔵書番号の数の順に読みかえる
+function vellichor_admin_book_orderby( $query ) {
+    if ( ! is_admin() || ! $query->is_main_query() ) {
+        return;
+    }
+    if ( 'vellichor_book_number' === $query->get( 'orderby' ) ) {
+        $query->set( 'meta_key', '_vellichor_book_number' );
+        $query->set( 'orderby', 'meta_value_num' );
+    }
+}
+add_action( 'pre_get_posts', 'vellichor_admin_book_orderby' );
