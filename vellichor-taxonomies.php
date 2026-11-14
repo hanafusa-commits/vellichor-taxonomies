@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Vellichor Taxonomies
  * Description: 本棚に猫の蔵書と、著者・出版社・形式・ジャンル・特集・状態・装丁者・切り口・読み放題/聴き放題の分類、蔵書の書誌情報の項目を登録する
-* Version: 1.21.0
+* Version: 1.22.0
  * Author: M.Hanafusa
  */
 
@@ -335,7 +335,7 @@ function vellichor_register_review_meta() {
         '_vellichor_book_id',
         array(
             'type'          => 'integer',
-            'single'        => true,
+            'single'        => false,
             'show_in_rest'  => true,
             'auth_callback' => function () {
                 return current_user_can( 'edit_posts' );
@@ -358,11 +358,12 @@ function vellichor_add_review_meta_box() {
 }
 add_action( 'add_meta_boxes', 'vellichor_add_review_meta_box' );
 
-// 枠の中身（蔵書を新しく登録した順に並べたプルダウン）
+// 枠の中身（蔵書を新しく登録した順に並べたチェックの一覧。複数選べる）
 function vellichor_render_review_meta_box( $post ) {
     wp_nonce_field( 'vellichor_save_review_meta', 'vellichor_review_meta_nonce' );
 
-    $current = (int) get_post_meta( $post->ID, '_vellichor_book_id', true );
+    // いまつないでいる蔵書の ID（複数）
+    $current = array_map( 'intval', get_post_meta( $post->ID, '_vellichor_book_id', false ) );
 
     $books = get_posts(
         array(
@@ -373,23 +374,29 @@ function vellichor_render_review_meta_box( $post ) {
             'order'          => 'DESC',
         )
     );
-    ?>
-    <select name="vellichor_book_id" id="vellichor_book_id" style="width:100%;">
-        <option value="0">（つながない）</option>
-        <?php foreach ( $books as $book ) : ?>
-            <?php
-            $number = (int) get_post_meta( $book->ID, '_vellichor_book_number', true );
-            $label  = $number ? sprintf( '%05d', $number ) : '番号なし';
-            if ( 'publish' !== $book->post_status ) {
-                $label .= '（下書き）';
-            }
-            ?>
-            <option value="<?php echo esc_attr( $book->ID ); ?>" <?php selected( $current, $book->ID ); ?>>
-                <?php echo esc_html( $label . ' ' . get_the_title( $book ) ); ?>
-            </option>
-        <?php endforeach; ?>
-    </select>
-    <?php
+
+    if ( empty( $books ) ) {
+        echo '<p>まだ蔵書が登録されていません。</p>';
+        return;
+    }
+
+    echo '<p>このレビューで取り上げた本にチェックを入れます（複数可）。</p>';
+    echo '<div style="max-height: 260px; overflow-y: auto; border: 1px solid #ddd; padding: 6px 8px;">';
+    foreach ( $books as $book ) {
+        $number = (int) get_post_meta( $book->ID, '_vellichor_book_number', true );
+        $label  = ( $number ? sprintf( '%05d', $number ) . ' ' : '' ) . get_the_title( $book );
+        if ( 'publish' !== $book->post_status ) {
+            $status = get_post_status_object( $book->post_status );
+            $label .= '（' . ( $status ? $status->label : $book->post_status ) . '）';
+        }
+        printf(
+            '<label style="display: block; margin: 4px 0;"><input type="checkbox" name="vellichor_book_ids[]" value="%d"%s> %s</label>',
+            $book->ID,
+            checked( in_array( $book->ID, $current, true ), true, false ),
+            esc_html( $label )
+        );
+    }
+    echo '</div>';
 }
 
 // 「つなぐ蔵書」で選ばれた蔵書を保存する
@@ -411,13 +418,17 @@ function vellichor_save_review_meta( $post_id ) {
         return;
     }
 
-    $book_id = isset( $_POST['vellichor_book_id'] ) ? absint( $_POST['vellichor_book_id'] ) : 0;
+    // チェックされた蔵書の ID を受け取る（何もチェックしなければ空）
+    $book_ids = isset( $_POST['vellichor_book_ids'] )
+        ? array_map( 'absint', (array) wp_unslash( $_POST['vellichor_book_ids'] ) )
+        : array();
 
-    // 選ばれた ID が本当に蔵書なら保存し、そうでなければ（「つながない」を含む）記録を消す
-    if ( $book_id && 'vellichor_book' === get_post_type( $book_id ) ) {
-        update_post_meta( $post_id, '_vellichor_book_id', $book_id );
-    } else {
-        delete_post_meta( $post_id, '_vellichor_book_id' );
+    // いったん記録をすべて消し、本当に蔵書であるものだけを1冊ずつ記録し直す
+    delete_post_meta( $post_id, '_vellichor_book_id' );
+    foreach ( array_unique( $book_ids ) as $book_id ) {
+        if ( $book_id && 'vellichor_book' === get_post_type( $book_id ) ) {
+            add_post_meta( $post_id, '_vellichor_book_id', $book_id );
+        }
     }
 }
 add_action( 'save_post_post', 'vellichor_save_review_meta' );
@@ -456,6 +467,29 @@ function vellichor_current_book_id() {
     return 0;
 }
 
+// 表示中のページに対応する蔵書の ID を、すべて返す（蔵書ならその本自身、レビューならつないだ本すべて）。なければ空
+// レビューでは、蔵書番号の小さい順（上巻→下巻の順）に並べる
+function vellichor_current_book_ids() {
+    $current_id = get_the_ID();
+    if ( 'vellichor_book' === get_post_type( $current_id ) ) {
+        return array( $current_id );
+    }
+    $ids = array();
+    foreach ( get_post_meta( $current_id, '_vellichor_book_id', false ) as $book_id ) {
+        $book_id = (int) $book_id;
+        if ( $book_id && 'vellichor_book' === get_post_type( $book_id ) ) {
+            $ids[] = $book_id;
+        }
+    }
+    usort(
+        $ids,
+        function ( $a, $b ) {
+            return (int) get_post_meta( $a, '_vellichor_book_number', true ) - (int) get_post_meta( $b, '_vellichor_book_number', true );
+        }
+    );
+    return $ids;
+}
+
 // ISBN-13（978 で始まるもの）を ISBN-10 に変換する。変換できなければ空
 function vellichor_isbn13_to_10( $isbn ) {
     $digits = preg_replace( '/[^0-9]/', '', $isbn );
@@ -474,16 +508,16 @@ function vellichor_isbn13_to_10( $isbn ) {
 // [vellichor_book_info]：表示中のページに対応する蔵書の書誌情報を表示する
 function vellichor_book_info_shortcode() {
 
-    // 表示中のページが蔵書ならその本自身、レビューならつないだ蔵書を使う。なければ何も出さない
-    $current_id = get_the_ID();
-    if ( 'vellichor_book' === get_post_type( $current_id ) ) {
-        $book_id = $current_id;
-    } else {
-        $book_id = (int) get_post_meta( $current_id, '_vellichor_book_id', true );
+    // 表示中のページが蔵書ならその本自身、レビューならつないだ蔵書すべてについて、台帳を順に並べる。なければ何も出さない
+    $html = '';
+    foreach ( vellichor_current_book_ids() as $book_id ) {
+        $html .= vellichor_render_book_info( $book_id, get_the_ID() );
     }
-    if ( ! $book_id || 'vellichor_book' !== get_post_type( $book_id ) ) {
-        return '';
-    }
+    return $html;
+}
+
+// 1冊分の台帳（書誌情報の一覧）を組み立てて返す。$current_id は表示中のページの ID
+function vellichor_render_book_info( $book_id, $current_id ) {
 
     // 見出し => 表示する中身（HTML）。値がある項目だけ、表の順に足していく
     $rows = array();
@@ -992,6 +1026,9 @@ $css = <<<'CSS'
 	font-size: 0.8em;
 	color: color-mix(in srgb, currentColor 65%, transparent);
 	font-variant-numeric: lining-nums;
+}
+.vellichor-book-info + .vellichor-book-info {
+	margin-top: 3em;
 }
 
 @media (max-width: 600px) {
