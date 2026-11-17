@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Vellichor Taxonomies
  * Description: 本棚に猫の蔵書と、著者・出版社・形式・ジャンル・特集・状態・装丁者・切り口・読み放題/聴き放題の分類、蔵書の書誌情報の項目を登録する
-* Version: 1.22.0
+* Version: 1.23.0
  * Author: M.Hanafusa
  */
 
@@ -71,6 +71,22 @@ function vellichor_register_taxonomies() {
             'args'         => array( 'orderby' => 'term_order' ),
 		)
 	);
+
+    // 訳者
+    register_taxonomy(
+        'book_translator',
+        array( 'post', 'vellichor_book' ),
+        array(
+            'labels'            => vellichor_labels( '訳者' ),
+            'hierarchical'      => false,
+            'public'            => true,
+            'show_in_rest'      => true,
+            'show_admin_column' => true,
+            'rewrite'           => array( 'slug' => 'translator' ),
+            'sort'              => true,
+            'args'              => array( 'orderby' => 'term_order' ),
+        )
+    );
 
 	// 出版社
 	register_taxonomy(
@@ -537,11 +553,12 @@ function vellichor_render_book_info( $book_id, $current_id ) {
         $rows['書名'] = $title;
     }
 
-    // 著者・装丁者・出版社（それぞれの一覧ページへのリンク）
+    // 著者・訳者・装丁者・出版社（それぞれの一覧ページへのリンク）
     $linked = array(
-        'book_writer'    => '著者',
-        'book_designer'  => '装丁者',
-        'book_publisher' => '出版社',
+        'book_writer'     => '著者',
+        'book_translator' => '訳者',
+        'book_designer'   => '装丁者',
+        'book_publisher'  => '出版社',
     );
     foreach ( $linked as $taxonomy => $label ) {
         $list = get_the_term_list( $book_id, $taxonomy, '', '、' );
@@ -1066,7 +1083,7 @@ function vellichor_book_only_taxonomies() {
 
 // レビューと蔵書の両方に付けている分類（一覧ページでは、蔵書を目録の形で、レビューを別の区画で表示する）
 function vellichor_shared_taxonomies() {
-    return array( 'book_writer', 'book_publisher', 'book_format', 'book_genre', 'book_feature' );
+    return array( 'book_writer', 'book_translator', 'book_publisher', 'book_format', 'book_genre', 'book_feature' );
 }
 
 // 目録の形で表示する分類（上の二つを合わせたもの）
